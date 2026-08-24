@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AQUORA | Ocean Intelligence</title>
+    <meta name="theme-color" content="#021b24" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      :root {
+        --bg: #021b24;
+        --bg-2: #042e3d;
+        --panel: rgba(4, 30, 42, 0.65);
+        --panel-strong: rgba(2, 16, 24, 0.86);
+        --line: rgba(126, 224, 235, 0.22);
+        --cyan: #00f2fe;
+        --cyan-soft: rgba(0, 242, 254, 0.12);
+        --emerald: #00f5a0;
+        --warning: #ffc857;
+        --danger: #ff6b6b;
+        --text: #ebf9ff;
+        --muted: #8aa5af;
+        --shadow: 0 0 18px rgba(0, 242, 254, 0.18);
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: radial-gradient(circle at top, #0d1a28 0%, var(--bg) 48%, #040c12 100%);
+        color: var(--text);
+        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        cursor: none;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      button, input, select {
+        font: inherit;
+      }
+
+      .app-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(180deg, rgba(2, 27, 36, 0.32), rgba(1, 10, 16, 0.72));
+        isolation: isolate;
+      }
+
+      #hydro-cursor, #hydro-cursor-ring {
+        position: fixed;
+        z-index: 100;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        mix-blend-mode: screen;
+      }
+
+      #hydro-cursor {
+        width: 7px;
+        height: 7px;
+        background: var(--emerald);
+        box-shadow: 0 0 16px var(--emerald), 0 0 28px rgba(0, 245, 160, 0.72);
+      }
+
+      #hydro-cursor-ring {
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(0, 242, 254, 0.8);
+        box-shadow: 0 0 22px rgba(0, 242, 254, 0.36), inset 0 0 12px rgba(0, 242, 254, 0.12);
+        transition: width 260ms ease, height 260ms ease, border-color 260ms ease;
+      }
+
+      body.cursor-hover #hydro-cursor-ring {
+        width: 58px;
+        height: 58px;
+        border-color: var(--emerald);
+      }
+
+      .ambient-canvas {
+        position: fixed !important;
+        inset: 0;
+        z-index: -1;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 0 !important;
+        pointer-events: none;
+      }
+
+      .hero-copy {
+        position: absolute;
+        z-index: 3;
+        top: 8%;
+        left: 50%;
+        width: min(650px, 80%);
+        transform: translateX(-50%);
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .hero-kicker {
+        color: var(--emerald);
+        font: 500 0.68rem 'DM Mono', monospace;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .hero-copy h1 {
+        margin: 0.65rem 0 0;
+        color: #e8ffff;
+        font-size: clamp(2.7rem, 6vw, 5.8rem);
+        line-height: 0.94;
+        letter-spacing: -0.04em;
+        text-shadow: 0 0 34px rgba(0, 242, 254, 0.24);
+      }
+
+      .hero-copy p {
+        max-width: 440px;
+        margin: 1rem auto 0;
+        color: rgba(213, 248, 250, 0.68);
+        font-size: 0.9rem;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.15rem;
+        margin-top: 0.55rem;
+        color: var(--muted);
+        font: 400 0.64rem 'DM Mono', monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .nav-links a { color: inherit; text-decoration: none; transition: color 180ms ease; }
+      .nav-links a:hover { color: var(--emerald); }
+
+      .conservation-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.36rem 0.62rem;
+        border: 1px solid rgba(0, 245, 160, 0.32);
+        border-radius: 999px;
+        color: var(--emerald);
+        background: rgba(0, 245, 160, 0.08);
+        font: 500 0.6rem 'DM Mono', monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .topbar {
+        position: relative;
+        z-index: 50;
+        display: grid;
+        grid-template-columns: 270px minmax(0, 1fr) 260px;
+        align-items: center;
+        gap: 1rem;
+        height: 78px;
+        padding: 0.9rem 1.25rem 0.75rem;
+        border-bottom: 1px solid var(--line);
+        background: rgba(2, 27, 36, 0.42);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+      }
+
+      .brand-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 242, 254, 0.42);
+        background: rgba(7, 19, 27, 0.8);
+        color: var(--cyan);
+        box-shadow: var(--shadow);
+        display: grid;
+        place-items: center;
+      }
+
+      .brand-mark {
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+      }
+
+      .brand-name {
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: 0.22em;
+        color: var(--emerald);
+      }
+
+      .brand-sub {
+        font-size: 0.62rem;
+        color: var(--muted);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .status-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .connection-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        border: 1px solid rgba(0, 245, 160, 0.3);
+        background: rgba(0, 245, 160, 0.08);
+        color: var(--emerald);
+      }
+
+      .connection-pill.offline {
+        border-color: rgba(255, 107, 107, 0.35);
+        background: rgba(255, 107, 107, 0.08);
+        color: var(--danger);
+      }
+
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 14px currentColor;
+        animation: pulse 1.6s infinite ease-in-out;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.25); opacity: 0.72; }
+      }
+
+      .layer-switches {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .layer-btn {
+        border: 1px solid rgba(138, 166, 178, 0.2);
+        background: rgba(11, 22, 31, 0.66);
+        color: var(--muted);
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.5rem 0.7rem;
+        border-radius: 999px;
+        transition: 0.2s ease;
+      }
+
+      .layer-btn.active {
+        background: rgba(0, 242, 254, 0.1);
+        border-color: rgba(0, 242, 254, 0.4);
+        color: var(--cyan);
+        box-shadow: inset 0 0 12px rgba(0, 242, 254, 0.08);
+      }
+
+      .ticker {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.7rem;
+      }
+
+      .ticker-card {
+        background: rgba(10, 20, 31, 0.56);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 0.6rem 0.7rem;
+        text-align: right;
+      }
+
+      .ticker-card strong {
+        display: block;
+        color: var(--cyan);
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      .ticker-card span {
+        font-size: 0.62rem;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: 300px minmax(0, 1fr) 360px;
+        gap: 1rem;
+        height: calc(100vh - 78px);
+        padding: 1rem 1rem 1.15rem;
+      }
+
+      .glass-panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+      }
+
+      .left-panel,
+      .right-panel {
+        padding: 1rem;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.9rem;
+        color: var(--muted);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 0.66rem;
+      }
+
+      .chip {
+        padding: 0.36rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 245, 160, 0.35);
+        background: rgba(0, 245, 160, 0.08);
+        color: var(--emerald);
+      }
+
+      .chip.warning {
+        border-color: rgba(255, 200, 87, 0.35);
+        background: rgba(255, 200, 87, 0.08);
+        color: var(--warning);
+      }
+
+      .chip.critical {
+        border-color: rgba(255, 107, 107, 0.38);
+        background: rgba(255, 107, 107, 0.08);
+        color: var(--danger);
+      }
+
+      .control-block {
+        padding: 0.8rem 0.85rem;
+        background: rgba(8, 18, 26, 0.46);
+        border: 1px solid rgba(148, 193, 211, 0.12);
+        border-radius: 16px;
+        margin-bottom: 0.9rem;
+      }
+
+      .control-label {
+        display: block;
+        margin-bottom: 0.65rem;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-size: 0.62rem;
+      }
+
+      select {
+        width: 100%;
+        background: rgba(14, 27, 38, 0.92);
+        color: var(--text);
+        border: 1px solid rgba(148, 193, 211, 0.16);
+        border-radius: 12px;
+        padding: 0.72rem 0.8rem;
+      }
+
+      .range-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.7rem;
+        color: var(--muted);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--cyan);
+      }
+
+      .readout {
+        display: block;
+        margin-top: 0.7rem;
+        color: var(--cyan);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+      }
+
+      .metric-card {
+        border-radius: 16px;
+        background: rgba(7, 18, 27, 0.58);
+        border: 1px solid rgba(148, 193, 211, 0.12);
+        padding: 0.9rem 0.8rem;
+      }
+
+      .metric-card .label {
+        color: var(--muted);
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .metric-card .value {
+        display: block;
+        margin-top: 0.45rem;
+        font-size: 1.7rem;
+        font-weight: 700;
+      }
+
+      .metric-card .unit {
+        color: var(--muted);
+        margin-left: 0.2rem;
+        font-size: 0.72rem;
+      }
+
+      .center-panel {
+        position: relative;
+      }
+
+      .viewport {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 1px solid rgba(148, 193, 211, 0.16);
+        background: radial-gradient(circle at center, rgba(20, 49, 58, 0.36), rgba(5, 10, 18, 0.9));
+        box-shadow: inset 0 0 60px rgba(23, 110, 138, 0.12);
+      }
+
+      #three-canvas {
+        width: 100%;
+        height: 100%;
+      }
+
+      .viewport-badges {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .coords-badge {
+        position: absolute;
+        top: 1.25rem;
+        left: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        color: var(--cyan);
+        letter-spacing: 0.14em;
+        font-weight: 600;
+      }
+
+      .coords-badge small,
+      .depth-badge small,
+      .context-pill small {
+        color: var(--muted);
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .depth-badge {
+        position: absolute;
+        top: 1.25rem;
+        right: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.7rem 0.8rem;
+        border-radius: 14px;
+        background: rgba(7, 17, 24, 0.54);
+        border: 1px solid var(--line);
+      }
+
+      .depth-badge strong {
+        color: var(--emerald);
+        font-size: 1.2rem;
+      }
+
+      .context-pill {
+        position: absolute;
+        left: 1.25rem;
+        bottom: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(7, 17, 24, 0.62);
+        border: 1px solid rgba(0, 242, 254, 0.24);
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.62rem;
+      }
+
+      .tooltip {
+        position: absolute;
+        left: 0;
+        top: 0;
+        pointer-events: none;
+        transform: translate(12px, -12px);
+        background: rgba(5, 12, 19, 0.88);
+        border: 1px solid rgba(0, 242, 254, 0.24);
+        border-radius: 12px;
+        padding: 0.7rem 0.8rem;
+        min-width: 180px;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      }
+
+      .tooltip.visible {
+        opacity: 1;
+      }
+
+      .tooltip strong {
+        display: block;
+        color: var(--cyan);
+        margin-bottom: 0.2rem;
+      }
+
+      .tooltip small {
+        color: var(--muted);
+      }
+
+      .right-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .chart-box {
+        background: rgba(8, 18, 27, 0.6);
+        border: 1px solid rgba(148, 193, 211, 0.12);
+        border-radius: 18px;
+        padding: 0.8rem 0.75rem 0.55rem;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.7rem;
+        color: var(--muted);
+        font-size: 0.66rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .chart-header strong {
+        color: var(--cyan);
+      }
+
+      canvas {
+        display: block;
+      }
+
+      .chat-box {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        background: rgba(8, 18, 27, 0.6);
+        border: 1px solid rgba(148, 193, 211, 0.12);
+        border-radius: 18px;
+        padding: 0.9rem;
+      }
+
+      .chat-box-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 0.7rem;
+      }
+
+      .chat-thread {
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+        overflow-y: auto;
+        flex: 1;
+        padding-right: 0.15rem;
+      }
+
+      .message {
+        max-width: 85%;
+        padding: 0.75rem 0.8rem;
+        border-radius: 16px;
+        line-height: 1.5;
+        font-size: 0.83rem;
+      }
+
+      .message.bot {
+        align-self: flex-start;
+        background: rgba(13, 24, 33, 0.8);
+        border: 1px solid rgba(148, 193, 211, 0.12);
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.26);
+        color: var(--cyan);
+      }
+
+      .quick-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0.8rem 0;
+      }
+
+      .quick-btn {
+        padding: 0.52rem 0.72rem;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 242, 254, 0.2);
+        background: rgba(8, 18, 27, 0.56);
+        color: var(--cyan);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .chat-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.6rem;
+      }
+
+      .chat-form input {
+        width: 100%;
+        background: rgba(13, 25, 34, 0.96);
+        border: 1px solid rgba(148, 193, 211, 0.16);
+        border-radius: 12px;
+        padding: 0.75rem 0.8rem;
+        color: var(--text);
+      }
+
+      .chat-form button {
+        width: 46px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--cyan), var(--emerald));
+        color: #021018;
+        font-weight: 800;
+        font-size: 1.2rem;
+      }
+
+      @media (max-width: 1200px) {
+        .main-grid {
+          grid-template-columns: 280px 1fr;
+        }
+
+        .right-panel {
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1rem;
+        }
+
+        .chat-box {
+          grid-column: 1 / -1;
+          min-height: 260px;
+        }
+      }
+
+      @media (max-width: 900px) {
+        body {
+          overflow: auto;
+        }
+
+        .topbar {
+          grid-template-columns: 1fr;
+          height: auto;
+          padding: 1rem 0.8rem;
+        }
+
+        .ticker {
+          width: 100%;
+        }
+
+        .main-grid {
+          grid-template-columns: 1fr;
+          height: auto;
+          padding-bottom: 2rem;
+        }
+
+        .viewport {
+          height: 520px;
+        }
+
+        .right-panel {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hydro-cursor" aria-hidden="true"></div>
+    <div id="hydro-cursor-ring" aria-hidden="true"></div>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <button class="brand-btn" type="button" aria-label="Select region">
+            <span class="brand-mark">◎</span>
+          </button>
+          <div class="brand-text">
+            <span class="brand-name">AQUORA</span>
+            <span class="brand-sub">Ocean Command</span>
+            <span class="conservation-badge">◈ Ocean conservation network</span>
+          </div>
+        </div>
+
+        <div class="status-bar">
+          <div id="connection-pill" class="connection-pill offline">
+            <span class="pulse-dot"></span>
+            <span>Offline</span>
+          </div>
+
+          <div class="layer-switches">
+            <button class="layer-btn active" data-layer="temperature" type="button">Temperature Heatmap</button>
+            <button class="layer-btn active" data-layer="salinity" type="button">Salinity Density</button>
+            <button class="layer-btn active" data-layer="flow" type="button">Flow Vectors</button>
+            <button class="layer-btn active" data-layer="pins" type="button">Sensor Pins</button>
+          </div>
+          <nav class="nav-links" aria-label="Primary navigation">
+            <a href="#about">About</a>
+            <a href="#ecosystems">Ecosystems</a>
+            <a href="#telemetry">Telemetry</a>
+            <a href="#forecast">Forecast</a>
+            <a href="#assistant">AI Assistant</a>
+          </nav>
+        </div>
+
+        <div class="ticker">
+          <div class="ticker-card">
+            <strong id="active-sensors">0</strong>
+            <span>Active Sensors</span>
+          </div>
+          <div class="ticker-card">
+            <strong id="avg-temp">0°C</strong>
+            <span>Avg Temp</span>
+          </div>
+          <div class="ticker-card">
+            <strong id="alert-count">0</strong>
+            <span>Anomaly Alerts</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-grid">
+        <aside class="glass-panel left-panel" id="telemetry">
+          <div class="panel-header">
+            <span>Telemetry Controls</span>
+            <span id="status-chip" class="chip">Normal</span>
+          </div>
+
+          <div class="control-block">
+            <label class="control-label" for="region-select">Region Selector</label>
+            <select id="region-select"></select>
+          </div>
+
+          <div class="control-block">
+            <label class="control-label" for="depth-slider">Depth</label>
+            <div class="range-row">
+              <span>0m</span>
+              <input id="depth-slider" type="range" min="0" max="1000" step="10" value="200" />
+              <span>1000m</span>
+            </div>
+            <span id="depth-readout" class="readout">200m</span>
+          </div>
+
+          <div class="control-block">
+            <label class="control-label" for="month-slider">Month</label>
+            <div class="range-row">
+              <span>Jan</span>
+              <input id="month-slider" type="range" min="0" max="11" step="1" value="4" />
+              <span>Dec</span>
+            </div>
+            <span id="month-readout" class="readout">May</span>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric-card">
+              <div class="label">Temperature</div>
+              <span class="value" id="temp-value">0.0</span>
+              <span class="unit">°C</span>
+            </div>
+            <div class="metric-card">
+              <div class="label">Salinity</div>
+              <span class="value" id="salinity-value">0.0</span>
+              <span class="unit">PSU</span>
+            </div>
+            <div class="metric-card">
+              <div class="label">Current</div>
+              <span class="value" id="speed-value">0.0</span>
+              <span class="unit">m/s</span>
+            </div>
+            <div class="metric-card">
+              <div class="label">Pressure</div>
+              <span class="value" id="pressure-value">0.0</span>
+              <span class="unit">bar</span>
+            </div>
+          </div>
+        </aside>
+
+        <section class="center-panel">
+          <div class="viewport">
+            <div id="three-canvas"></div>
+
+            <div class="hero-copy" id="about">
+              <span class="hero-kicker">Ocean intelligence / live field systems</span>
+              <h1>Dive Into<br />Ocean Intelligence</h1>
+              <p>Read the living ocean through a realtime layer of sensors, models, and shifting depth signals.</p>
+            </div>
+
+            <div class="viewport-badges">
+              <div class="coords-badge">
+                <span id="coords-text">15.0°N, 89.0°E</span>
+                <small>Ocean Grid</small>
+              </div>
+
+              <div class="depth-badge">
+                <small>Depth</small>
+                <strong id="viewport-depth">200m</strong>
+              </div>
+
+              <div class="context-pill">
+                <span class="pulse-dot" style="color: var(--emerald);"></span>
+                <span id="context-text">Monsoon-driven basin</span>
+              </div>
+            </div>
+
+            <div id="tooltip" class="tooltip">
+              <strong id="tooltip-name">Bay of Bengal</strong>
+              <small id="tooltip-meta">Live telemetry</small>
+            </div>
+          </div>
+        </section>
+
+        <aside class="glass-panel right-panel">
+          <div class="chart-box" id="forecast">
+            <div class="chart-header">
+              <span>7-Day Forecast</span>
+              <strong>Temp / Salinity</strong>
+            </div>
+            <canvas id="forecast-chart" height="180"></canvas>
+          </div>
+
+          <div class="chat-box" id="assistant">
+            <div class="chat-box-header">
+              <span>Ask AQUORA</span>
+              <small>AI Assistant</small>
+            </div>
+
+            <div id="chat-thread" class="chat-thread">
+              <div class="message bot">System online. Select a region or ask about the current basin profile.</div>
+            </div>
+
+            <div class="quick-actions">
+              <button class="quick-btn" type="button">Analyze Thermal Anomaly</button>
+              <button class="quick-btn" type="button">Simulate 48h Drift</button>
+            </div>
+
+            <form class="chat-form" id="chat-form">
+              <input id="chat-input" type="text" placeholder="Ask about the current ocean state..." />
+              <button type="submit">↗</button>
+            </form>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+      const API_BASE = 'http://localhost:5000';
+      const WS_URL = 'ws://localhost:5000/ws/telemetry';
+
+      const regions = {
+        bay_of_bengal: {
+          id: 'bay_of_bengal',
+          name: 'Bay of Bengal',
+          coords: { lat: 15, lon: 89 },
+          baseTemp: 28.5,
+          baseSalinity: 33.2,
+          defaultDepth: 200,
+          description: 'Monsoon-driven basin',
+          sensor: 'ARGO-4902',
+          count: 14,
+          accent: '#00f5a0',
+          position: { x: -1.3, y: 0.6, z: 0.8 }
+        },
+        north_pacific: {
+          id: 'north_pacific',
+          name: 'North Pacific',
+          coords: { lat: 35, lon: -160 },
+          baseTemp: 18.2,
+          baseSalinity: 34.0,
+          defaultDepth: 240,
+          description: 'Kuroshio influence',
+          sensor: 'ARGO-7102',
+          count: 22,
+          accent: '#00f2fe',
+          position: { x: 1.7, y: 0.8, z: -1.5 }
+        },
+        north_atlantic: {
+          id: 'north_atlantic',
+          name: 'North Atlantic',
+          coords: { lat: 40, lon: -40 },
+          baseTemp: 16.8,
+          baseSalinity: 35.5,
+          defaultDepth: 260,
+          description: 'Gulf Stream zone',
+          sensor: 'ARGO-3201',
+          count: 18,
+          accent: '#ffc857',
+          position: { x: -0.7, y: 0.25, z: -2.2 }
+        },
+        south_indian_ocean: {
+          id: 'south_indian_ocean',
+          name: 'South Indian Ocean',
+          coords: { lat: -20, lon: 80 },
+          baseTemp: 22.1,
+          baseSalinity: 35.1,
+          defaultDepth: 280,
+          description: 'Trade wind corridor',
+          sensor: 'ARGO-2614',
+          count: 16,
+          accent: '#8fe5d5',
+          position: { x: 1.2, y: 0.9, z: 1.4 }
+        },
+        arctic_ocean: {
+          id: 'arctic_ocean',
+          name: 'Arctic Ocean',
+          coords: { lat: 80, lon: 10 },
+          baseTemp: -1.2,
+          baseSalinity: 30.5,
+          defaultDepth: 160,
+          description: 'Polar ice margin',
+          sensor: 'ARGO-9901',
+          count: 8,
+          accent: '#9bd9e8',
+          position: { x: -1.8, y: 1.8, z: -0.5 }
+        },
+        mediterranean_sea: {
+          id: 'mediterranean_sea',
+          name: 'Mediterranean Sea',
+          coords: { lat: 36, lon: 18 },
+          baseTemp: 19.1,
+          baseSalinity: 38.4,
+          defaultDepth: 220,
+          description: 'Warm stratified basin',
+          sensor: 'ARGO-1837',
+          count: 11,
+          accent: '#7cd7ff',
+          position: { x: 0.2, y: 0.4, z: -0.2 }
+        }
+      };
+
+      const state = {
+        selectedRegion: 'bay_of_bengal',
+        depth: 200,
+        month: 4,
+        telemetry: null,
+        forecast: null,
+        connected: false,
+        socket: null,
+        layers: {
+          temperature: true,
+          salinity: true,
+          flow: true,
+          pins: true,
+        },
+        hoverRegion: null
+      };
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      const els = {
+        regionSelect: document.getElementById('region-select'),
+        depthSlider: document.getElementById('depth-slider'),
+        monthSlider: document.getElementById('month-slider'),
+        depthReadout: document.getElementById('depth-readout'),
+        monthReadout: document.getElementById('month-readout'),
+        coordsText: document.getElementById('coords-text'),
+        viewportDepth: document.getElementById('viewport-depth'),
+        contextText: document.getElementById('context-text'),
+        statusChip: document.getElementById('status-chip'),
+        connectionPill: document.getElementById('connection-pill'),
+        tempValue: document.getElementById('temp-value'),
+        salinityValue: document.getElementById('salinity-value'),
+        speedValue: document.getElementById('speed-value'),
+        pressureValue: document.getElementById('pressure-value'),
+        activeSensors: document.getElementById('active-sensors'),
+        avgTemp: document.getElementById('avg-temp'),
+        alertCount: document.getElementById('alert-count'),
+        chatThread: document.getElementById('chat-thread'),
+        chatForm: document.getElementById('chat-form'),
+        chatInput: document.getElementById('chat-input'),
+        forecastChart: document.getElementById('forecast-chart'),
+        tooltip: document.getElementById('tooltip'),
+        tooltipName: document.getElementById('tooltip-name'),
+        tooltipMeta: document.getElementById('tooltip-meta')
+      };
+
+      function formatDirection(deg) {
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const index = Math.round(((deg % 360) / 45)) % 8;
+        return dirs[index];
+      }
+
+      function setConnectionState(online) {
+        state.connected = online;
+        const pill = els.connectionPill;
+        pill.classList.toggle('offline', !online);
+        const label = pill.querySelector('span:last-child');
+        label.textContent = online ? 'Online' : 'Offline';
+      }
+
+      function setStatusChip(status) {
+        const chip = els.statusChip;
+        chip.textContent = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Normal';
+        chip.classList.remove('warning', 'critical');
+        if (status === 'warning') chip.classList.add('warning');
+        if (status === 'critical') chip.classList.add('critical');
+      }
+
+      function populateRegionSelector() {
+        const entries = Object.values(regions);
+        els.regionSelect.innerHTML = entries.map(region => `
+          <option value="${region.id}">${region.name}</option>
+        `).join('');
+        els.regionSelect.value = state.selectedRegion;
+      }
+
+      async function fetchJson(url, options = {}) {
+        const response = await fetch(url, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+      }
+
+      async function fetchTelemetry() {
+        try {
+          const telemetry = await fetchJson(`${API_BASE}/api/v1/telemetry?region=${state.selectedRegion}&depth=${state.depth}&month=${state.month}`);
+          state.telemetry = telemetry;
+          renderTelemetry(telemetry);
+          return telemetry;
+        } catch (error) {
+          console.warn('Telemetry fetch failed, using fallback values.', error);
+          const region = regions[state.selectedRegion];
+          const fallback = {
+            region_id: state.selectedRegion,
+            region_name: region.name,
+            month: state.month,
+            month_name: monthNames[state.month],
+            depth: state.depth,
+            metrics: {
+              temperature: region.baseTemp - (state.depth / 1000) * 6 + Math.sin(state.month / 2) * 0.9,
+              salinity: region.baseSalinity + (state.depth / 1000) * 2 + Math.cos(state.month / 2) * 0.3,
+              current_speed: 0.8 + Math.sin(state.depth / 150) * 0.5,
+              current_direction: 45 + state.month * 12,
+              pressure: 1 + state.depth * 0.1019
+            },
+            anomaly_status: 'normal',
+            sensor_id: region.sensor,
+            alerts: ['Fallback telemetry in use']
+          };
+          state.telemetry = fallback;
+          renderTelemetry(fallback);
+          return fallback;
+        }
+      }
+
+      async function fetchForecast() {
+        try {
+          const forecast = await fetchJson(`${API_BASE}/api/v1/forecast?region=${state.selectedRegion}&depth=${state.depth}`);
+          state.forecast = forecast;
+          renderForecastChart(forecast);
+        } catch (error) {
+          console.warn('Forecast fetch failed, using fallback data.', error);
+          const baseTemp = regions[state.selectedRegion].baseTemp;
+          const baseSal = regions[state.selectedRegion].baseSalinity;
+          const fallback = {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            temperature: [baseTemp, baseTemp + 0.8, baseTemp + 1.1, baseTemp + 0.6, baseTemp + 1.5, baseTemp + 1.2, baseTemp + 0.9],
+            salinity: [baseSal, baseSal + 0.3, baseSal + 0.5, baseSal + 0.2, baseSal + 0.7, baseSal + 0.6, baseSal + 0.9]
+          };
+          state.forecast = fallback;
+          renderForecastChart(fallback);
+        }
+      }
+
+      function renderTelemetry(telemetry) {
+        const metrics = telemetry.metrics || {};
+        const region = regions[state.selectedRegion];
+
+        els.tempValue.textContent = Number(metrics.temperature ?? 0).toFixed(1);
+        els.salinityValue.textContent = Number(metrics.salinity ?? 0).toFixed(1);
+        els.speedValue.textContent = Number(metrics.current_speed ?? 0).toFixed(2);
+        els.pressureValue.textContent = Number(metrics.pressure ?? (1 + Number(telemetry.depth ?? state.depth) * 0.1019)).toFixed(1);
+        els.depthReadout.textContent = `${Math.round(telemetry.depth ?? state.depth)}m`;
+        els.viewportDepth.textContent = `${Math.round(telemetry.depth ?? state.depth)}m`;
+        els.monthReadout.textContent = telemetry.month_name || monthNames[state.month];
+        els.statusChip.textContent = (telemetry.anomaly_status || 'normal').charAt(0).toUpperCase() + (telemetry.anomaly_status || 'normal').slice(1);
+        els.statusChip.classList.remove('warning', 'critical');
+        if (telemetry.anomaly_status === 'warning') els.statusChip.classList.add('warning');
+        if (telemetry.anomaly_status === 'critical') els.statusChip.classList.add('critical');
+
+        const lat = region.coords.lat;
+        const lon = region.coords.lon;
+        els.coordsText.textContent = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`;
+        els.contextText.textContent = region.description;
+        els.activeSensors.textContent = String(region.count);
+        els.avgTemp.textContent = `${Number(metrics.temperature ?? region.baseTemp).toFixed(1)}°C`;
+        els.alertCount.textContent = String((telemetry.alerts || []).length || 1);
+      }
+
+      function renderForecastChart(forecast) {
+        const labels = forecast.labels || ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'];
+        const temp = forecast.temperature || [0, 0, 0, 0, 0, 0, 0];
+        const sal = forecast.salinity || [0, 0, 0, 0, 0, 0, 0];
+
+        const ctx = els.forecastChart.getContext('2d');
+        if (window.forecastChartInstance) {
+          window.forecastChartInstance.destroy();
+        }
+
+        window.forecastChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Temperature',
+                data: temp,
+                borderColor: '#00f2fe',
+                backgroundColor: 'rgba(0,242,254,0.12)',
+                borderWidth: 2.5,
+                tension: 0.38,
+                pointRadius: 2.5,
+                pointBackgroundColor: '#00f2fe'
+              },
+              {
+                label: 'Salinity',
+                data: sal,
+                borderColor: '#00f5a0',
+                backgroundColor: 'rgba(0,245,160,0.08)',
+                borderWidth: 2.5,
+                tension: 0.38,
+                pointRadius: 2.5,
+                pointBackgroundColor: '#00f5a0'
+              }
+            ]
+          },
+          options: {
+            maintainAspectRatio: false,
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                labels: { color: '#cfeef2', font: { size: 10 } }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#8aa5af' },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+              },
+              y: {
+                ticks: { color: '#8aa5af' },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+              }
+            }
+          }
+        });
+      }
+
+      function addMessage(text, side = 'bot') {
+        const div = document.createElement('div');
+        div.className = `message ${side}`;
+        div.textContent = text;
+        els.chatThread.appendChild(div);
+        els.chatThread.scrollTop = els.chatThread.scrollHeight;
+      }
+
+      function updateSelectedRegionUI() {
+        const region = regions[state.selectedRegion];
+        els.regionSelect.value = state.selectedRegion;
+        els.contextText.textContent = region.description;
+        els.coordsText.textContent = `${Math.abs(region.coords.lat).toFixed(1)}°${region.coords.lat >= 0 ? 'N' : 'S'}, ${Math.abs(region.coords.lon).toFixed(1)}°${region.coords.lon >= 0 ? 'E' : 'W'}`;
+      }
+
+      async function sendChatQuestion(question) {
+        const payload = {
+          question,
+          region: state.selectedRegion,
+          telemetry: state.telemetry,
+          depth: state.depth,
+          month: state.month
+        };
+
+        try {
+          const response = await fetchJson(`${API_BASE}/api/v1/ai/chat`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          const answer = response.answer || response.message || 'No result returned.';
+          addMessage(answer, 'bot');
+        } catch (error) {
+          addMessage('AQUORA is offline. Please ensure the local backend is running on port 5000.', 'bot');
+        }
+      }
+
+      function bindEvents() {
+        els.regionSelect.addEventListener('change', (event) => {
+          state.selectedRegion = event.target.value;
+          state.depth = regions[state.selectedRegion].defaultDepth;
+          els.depthSlider.value = String(state.depth);
+          updateSelectedRegionUI();
+          subscribeSocket();
+          fetchTelemetry();
+          fetchForecast();
+        });
+
+        els.depthSlider.addEventListener('input', (event) => {
+          state.depth = Number(event.target.value);
+          els.depthReadout.textContent = `${state.depth}m`;
+          subscribeSocket();
+          fetchTelemetry();
+          fetchForecast();
+        });
+
+        els.monthSlider.addEventListener('input', (event) => {
+          state.month = Number(event.target.value);
+          els.monthReadout.textContent = monthNames[state.month];
+          fetchTelemetry();
+        });
+
+        document.querySelectorAll('.layer-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const layer = btn.dataset.layer;
+            state.layers[layer] = !state.layers[layer];
+            btn.classList.toggle('active', state.layers[layer]);
+            updateLayerVisibility();
+          });
+        });
+
+        document.querySelectorAll('.quick-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const q = btn.textContent.trim();
+            addMessage(q, 'user');
+            sendChatQuestion(q);
+          });
+        });
+
+        els.chatForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const value = els.chatInput.value.trim();
+          if (!value) return;
+          addMessage(value, 'user');
+          els.chatInput.value = '';
+          sendChatQuestion(value);
+        });
+      }
+
+      function updateLayerVisibility() {
+        const ocean = document.getElementById('ocean-heat');
+        const salinity = document.getElementById('salinity-layer');
+        const flow = document.getElementById('flow-layer');
+        const pins = document.getElementById('pins-layer');
+
+        if (ocean) ocean.visible = state.layers.temperature;
+        if (salinity) salinity.visible = state.layers.salinity;
+        if (flow) flow.visible = state.layers.flow;
+        if (pins) pins.visible = state.layers.pins;
+      }
+
+      function connectSocket() {
+        if (state.socket) {
+          state.socket.close();
+        }
+
+        try {
+          const socket = new WebSocket(WS_URL);
+          state.socket = socket;
+
+          socket.onopen = () => {
+            setConnectionState(true);
+            subscribeSocket();
+          };
+
+          socket.onclose = () => {
+            setConnectionState(false);
+          };
+
+          socket.onerror = () => {
+            setConnectionState(false);
+          };
+
+          socket.onmessage = (event) => {
+            try {
+              const payload = JSON.parse(event.data);
+              if (payload && payload.type === 'telemetry' && payload.data) {
+                const data = payload.data;
+                const region = data.region_name || regions[state.selectedRegion].name;
+                const metrics = data.metrics || {};
+                if (data.region_id === state.selectedRegion) {
+                  els.tempValue.textContent = Number(metrics.temperature || 0).toFixed(1);
+                  els.salinityValue.textContent = Number(metrics.salinity || 0).toFixed(1);
+                  els.speedValue.textContent = Number(metrics.current_speed || 0).toFixed(2);
+                  els.pressureValue.textContent = Number(metrics.pressure ?? (1 + state.depth * 0.1019)).toFixed(1);
+                  setStatusChip(data.anomaly_status || 'normal');
+                }
+                if (region) {
+                  els.contextText.textContent = region;
+                }
+              }
+            } catch (error) {
+              console.warn('Socket payload parse failed', error);
+            }
+          };
+        } catch (error) {
+          setConnectionState(false);
+        }
+      }
+
+      function subscribeSocket() {
+        if (!state.socket || state.socket.readyState !== WebSocket.OPEN) return;
+        state.socket.send(JSON.stringify({
+          action: 'subscribe',
+          region: state.selectedRegion,
+          depth: state.depth
+        }));
+      }
+
+      function initScene() {
+        const mount = document.getElementById('three-canvas');
+        mount.classList.add('ambient-canvas');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x050b14, 6, 18);
+
+        const camera = new THREE.PerspectiveCamera(52, mount.clientWidth / mount.clientHeight, 0.1, 100);
+        camera.position.set(0, 3.8, 7.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(mount.clientWidth, mount.clientHeight);
+        mount.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight(0x9be4ff, 1.2);
+        scene.add(ambient);
+
+        const directional = new THREE.DirectionalLight(0x6ce7ff, 1.8);
+        directional.position.set(4, 6, 2);
+        scene.add(directional);
+
+        const causticMaterial = new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          uniforms: {
+            uTime: { value: 0 },
+            uDepth: { value: state.depth / 1000 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float uTime;
+            uniform float uDepth;
+            varying vec2 vUv;
+            void main() {
+              vec2 p = vUv * 8.0;
+              float wave = sin(p.x * 2.1 + uTime * 0.7) + sin(p.y * 2.8 - uTime * 0.5);
+              float caustic = smoothstep(0.58, 0.96, sin(wave + sin(p.x + uTime) * 0.8) * 0.5 + 0.5);
+              float attenuation = (1.0 - uDepth) * 0.18;
+              vec3 color = mix(vec3(0.0, 0.15, 0.2), vec3(0.0, 0.8, 0.85), caustic);
+              gl_FragColor = vec4(color, caustic * attenuation);
+            }
+          `
+        });
+        const causticPlane = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), causticMaterial);
+        causticPlane.rotation.x = -Math.PI / 2;
+        causticPlane.position.y = -2.1;
+        scene.add(causticPlane);
+
+        const shaftMaterial = new THREE.MeshBasicMaterial({ color: 0x00b4d8, transparent: true, opacity: 0.04, depthWrite: false, side: THREE.DoubleSide });
+        for (let index = 0; index < 4; index += 1) {
+          const shaft = new THREE.Mesh(new THREE.ConeGeometry(0.6 + index * 0.16, 7, 24, 1, true), shaftMaterial.clone());
+          shaft.position.set(-3.5 + index * 2.3, 0.4, -2.5);
+          shaft.rotation.z = (index - 1.5) * 0.08;
+          scene.add(shaft);
+        }
+
+        const oceanGroup = new THREE.Group();
+        scene.add(oceanGroup);
+
+        const waterMaterial = new THREE.MeshPhysicalMaterial({
+          color: '#071d2b',
+          emissive: '#071d2b',
+          transparent: true,
+          opacity: 0.9,
+          roughness: 0.2,
+          metalness: 0.22,
+          transmission: 0.15,
+          side: THREE.DoubleSide
+        });
+
+        const oceanGeometry = new THREE.CylinderGeometry(3.6, 4.9, 2.4, 100, 30, true);
+        const oceanMesh = new THREE.Mesh(oceanGeometry, waterMaterial);
+        oceanMesh.rotation.x = -Math.PI / 2;
+        oceanMesh.position.y = -0.5;
+        oceanGroup.add(oceanMesh);
+
+        const heatLayer = new THREE.Mesh(
+          new THREE.CircleGeometry(2.7, 64),
+          new THREE.MeshBasicMaterial({
+            color: '#00f2fe',
+            transparent: true,
+            opacity: 0.16,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
+          })
+        );
+        heatLayer.rotation.x = -Math.PI / 2;
+        heatLayer.position.y = 0.1;
+        heatLayer.visible = state.layers.temperature;
+        heatLayer.name = 'ocean-heat';
+        heatLayer.id = 'ocean-heat';
+        scene.add(heatLayer);
+        document.getElementById('ocean-heat')?.setAttribute('id','ocean-heat');
+
+        const salinityLayer = new THREE.Mesh(
+          new THREE.CircleGeometry(2.4, 64),
+          new THREE.MeshBasicMaterial({
+            color: '#00f5a0',
+            transparent: true,
+            opacity: 0.12,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
+          })
+        );
+        salinityLayer.rotation.x = -Math.PI / 2;
+        salinityLayer.position.y = 0.18;
+        salinityLayer.visible = state.layers.salinity;
+        salinityLayer.id = 'salinity-layer';
+        scene.add(salinityLayer);
+
+        const pinsGroup = new THREE.Group();
+        pinsGroup.id = 'pins-layer';
+        pinsGroup.visible = state.layers.pins;
+        scene.add(pinsGroup);
+
+        const flowGroup = new THREE.Group();
+        flowGroup.id = 'flow-layer';
+        flowGroup.visible = state.layers.flow;
+        scene.add(flowGroup);
+
+        const particleGeometry = new THREE.SphereGeometry(0.025, 8, 8);
+        const particles = [];
+        for (let i = 0; i < 150; i++) {
+          const particle = new THREE.Mesh(
+            particleGeometry,
+            new THREE.MeshBasicMaterial({ color: '#9fe9ff', transparent: true, opacity: 0.85 })
+          );
+          particle.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3.2, (Math.random() - 0.5) * 7);
+          particles.push(particle);
+          scene.add(particle);
+        }
+
+        const bubbles = [];
+        for (let index = 0; index < 34; index += 1) {
+          const bubble = new THREE.Mesh(
+            new THREE.SphereGeometry(0.025 + Math.random() * 0.075, 12, 12),
+            new THREE.MeshBasicMaterial({ color: 0x8fefff, transparent: true, opacity: 0.22, wireframe: true })
+          );
+          bubble.position.set((Math.random() - 0.5) * 11, -3 + Math.random() * 5, (Math.random() - 0.5) * 8);
+          bubble.userData = { speed: 0.00035 + Math.random() * 0.00055, sway: Math.random() * Math.PI * 2, baseX: bubble.position.x };
+          scene.add(bubble);
+          bubbles.push(bubble);
+        }
+
+        const turtle = new THREE.Group();
+        const shell = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 14), new THREE.MeshStandardMaterial({ color: 0x17626c, roughness: 0.8, emissive: 0x063b45, emissiveIntensity: 0.4 }));
+        shell.scale.set(1.35, 0.38, 0.9);
+        turtle.add(shell);
+        const turtleHead = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), shell.material);
+        turtleHead.position.set(0.58, 0, 0);
+        turtle.add(turtleHead);
+        [[-0.32, 0, -0.5], [-0.32, 0, 0.5], [0.05, 0, -0.5], [0.05, 0, 0.5]].forEach(([x, y, z]) => {
+          const fin = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), shell.material);
+          fin.scale.set(1.7, 0.16, 0.42);
+          fin.position.set(x, y, z);
+          turtle.add(fin);
+        });
+        turtle.position.set(3.2, 1.6, -4.6);
+        turtle.rotation.y = -0.5;
+        scene.add(turtle);
+
+        const buoyMeshes = new Map();
+
+        function buildBuoy(id, region) {
+          const group = new THREE.Group();
+          const base = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.08, 0.12, 0.7, 18),
+            new THREE.MeshStandardMaterial({
+              color: id === state.selectedRegion ? '#00f5a0' : '#91edf7',
+              emissive: id === state.selectedRegion ? '#00f5a0' : '#0f4c63',
+              emissiveIntensity: 0.8
+            })
+          );
+          const orb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 18, 18),
+            new THREE.MeshStandardMaterial({
+              color: '#dffcff',
+              emissive: '#00f2fe',
+              emissiveIntensity: 1.1
+            })
+          );
+          orb.position.y = 0.7;
+          group.add(base);
+          group.add(orb);
+          group.position.set(region.position.x, region.position.y, region.position.z);
+          pinsGroup.add(group);
+          buoyMeshes.set(id, group);
+        }
+
+        Object.entries(regions).forEach(([id, region]) => buildBuoy(id, region));
+
+        function createFlowLine(direction, position) {
+          const material = new THREE.LineBasicMaterial({ color: '#00f2fe', transparent: true, opacity: 0.5 });
+          const points = [];
+          const length = 0.8;
+          const dirX = Math.cos(direction) * length;
+          const dirZ = Math.sin(direction) * length;
+          points.push(new THREE.Vector3(position.x, position.y + 0.25, position.z));
+          points.push(new THREE.Vector3(position.x + dirX, position.y + 0.45, position.z + dirZ));
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          return new THREE.Line(geometry, material);
+        }
+
+        Object.values(regions).forEach((region, index) => {
+          const line = createFlowLine((index + 1) * 1.15, new THREE.Vector3(region.position.x, region.position.y, region.position.z));
+          flowGroup.add(line);
+        });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function updateTooltip(event) {
+          const rect = mount.getBoundingClientRect();
+          const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+          mouse.x = x;
+          mouse.y = y;
+          raycaster.setFromCamera(mouse, camera);
+          const hits = raycaster.intersectObjects(Array.from(buoyMeshes.values()), true);
+          if (hits.length > 0) {
+            const hit = hits[0].object.parent || hits[0].object;
+            const regionId = Object.entries(regions).find(([, region]) => buoyMeshes.get(regionId)?.uuid === hit.uuid)?.[0];
+            const region = Object.values(regions).find((r) => buoyMeshes.get(r.id)?.uuid === hit.uuid || buoyMeshes.get(r.id) === hit || buoyMeshes.get(r.id)?.children.includes(hit));
+            if (region) {
+              const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+              els.tooltipName.textContent = region.name;
+              els.tooltipMeta.textContent = `${region.sensor} · ${region.count} sensors`;
+              els.tooltip.style.left = `${point.x + 12}px`;
+              els.tooltip.style.top = `${point.y - 34}px`;
+              els.tooltip.classList.add('visible');
+              state.hoverRegion = region.id;
+              return;
+            }
+          }
+          els.tooltip.classList.remove('visible');
+          state.hoverRegion = null;
+        }
+
+        renderer.domElement.addEventListener('mousemove', updateTooltip);
+        renderer.domElement.addEventListener('click', (event) => {
+          const rect = mount.getBoundingClientRect();
+          const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+          mouse.x = x;
+          mouse.y = y;
+          raycaster.setFromCamera(mouse, camera);
+          const hits = raycaster.intersectObjects(Array.from(buoyMeshes.values()), true);
+          if (hits.length > 0) {
+            const target = hits[0].object.parent || hits[0].object;
+            for (const [id, group] of buoyMeshes.entries()) {
+              if (group === target || group.children.includes(target)) {
+                state.selectedRegion = id;
+                els.regionSelect.value = id;
+                state.depth = regions[id].defaultDepth;
+                els.depthSlider.value = String(state.depth);
+                updateSelectedRegionUI();
+                fetchTelemetry();
+                fetchForecast();
+                subscribeSocket();
+                break;
+              }
+            }
+          }
+        });
+
+        function animate() {
+          requestAnimationFrame(animate);
+          const now = performance.now();
+          const depthNorm = state.depth / 1000;
+          oceanMesh.rotation.z += 0.0012;
+          heatLayer.rotation.z += 0.001;
+          salinityLayer.rotation.z -= 0.0012;
+          particles.forEach((p, i) => {
+            p.position.y = Math.sin((now * 0.0016) + i) * 1.4 + (i % 3) * 0.2;
+            p.position.x += Math.sin(i + now * 0.0005) * 0.0006;
+          });
+          bubbles.forEach((bubble) => {
+            bubble.position.y += bubble.userData.speed * 16;
+            bubble.position.x = bubble.userData.baseX + Math.sin(now * 0.001 + bubble.userData.sway) * 0.18;
+            if (bubble.position.y > 3.6) bubble.position.y = -3.2;
+          });
+          turtle.position.y = 1.6 + Math.sin(now * 0.0007) * 0.16;
+          causticMaterial.uniforms.uTime.value = now * 0.001;
+          causticMaterial.uniforms.uDepth.value = depthNorm;
+
+          const tint = 0.25 + depthNorm * 0.7;
+          oceanMesh.material.color.setHSL(0.56, 0.55, 0.18 + tint * 0.1);
+          ambient.intensity = 1.45 - depthNorm * 0.95;
+          directional.intensity = 1.8 - depthNorm * 1.3;
+          directional.color.setHSL(0.53 - depthNorm * 0.08, 0.8, 0.56 - depthNorm * 0.28);
+          scene.fog.color.setHSL(0.54 - depthNorm * 0.08, 0.72, 0.06 - depthNorm * 0.035);
+          heatLayer.material.opacity = state.layers.temperature ? 0.12 + depthNorm * 0.14 : 0;
+          salinityLayer.material.opacity = state.layers.salinity ? 0.08 + depthNorm * 0.12 : 0;
+
+          camera.position.x = Math.sin(now * 0.00055) * 0.7;
+          camera.lookAt(0, 0.5, 0);
+          renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+          const width = mount.clientWidth || 800;
+          const height = mount.clientHeight || 600;
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+          renderer.setSize(width, height);
+        });
+      }
+
+      function initHydroCursor() {
+        const dot = document.getElementById('hydro-cursor');
+        const ring = document.getElementById('hydro-cursor-ring');
+        const pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        const ringPosition = { x: pointer.x, y: pointer.y, vx: 0, vy: 0 };
+        window.addEventListener('pointermove', (event) => {
+          pointer.x = event.clientX;
+          pointer.y = event.clientY;
+          dot.style.left = `${pointer.x}px`;
+          dot.style.top = `${pointer.y}px`;
+        });
+        document.querySelectorAll('button, input, select, a').forEach((element) => {
+          element.addEventListener('pointerenter', () => document.body.classList.add('cursor-hover'));
+          element.addEventListener('pointerleave', () => document.body.classList.remove('cursor-hover'));
+        });
+        function animateCursor() {
+          ringPosition.vx += (pointer.x - ringPosition.x) * 0.16;
+          ringPosition.vy += (pointer.y - ringPosition.y) * 0.16;
+          ringPosition.vx *= 0.68;
+          ringPosition.vy *= 0.68;
+          ringPosition.x += ringPosition.vx;
+          ringPosition.y += ringPosition.vy;
+          ring.style.left = `${ringPosition.x}px`;
+          ring.style.top = `${ringPosition.y}px`;
+          requestAnimationFrame(animateCursor);
+        }
+        animateCursor();
+      }
+
+      (async function init() {
+        populateRegionSelector();
+        updateSelectedRegionUI();
+        bindEvents();
+        initHydroCursor();
+        initScene();
+        setConnectionState(false);
+        connectSocket();
+        await fetchTelemetry();
+        await fetchForecast();
+      })();
+    </script>
+  </body>
+</html>
