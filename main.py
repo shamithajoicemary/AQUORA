@@ -22,13 +22,25 @@ app.add_middleware(
 app.include_router(aquora_router)
 
 
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Serve static files from public directory if exists
+public_dir = os.path.join(os.path.dirname(__file__), "public")
+if os.path.exists(public_dir):
+    app.mount("/static", StaticFiles(directory=public_dir), name="static")
+
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "aquora-api"}
+    return {"status": "ok", "service": "AQUORA Hybrid Ocean Intelligence Backend"}
 
 
 @app.get("/", tags=["system"])
-def root() -> dict[str, str]:
+def root():
+    index_path = os.path.join(public_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"service": "AQUORA", "status": "online"}
 
 
